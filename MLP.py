@@ -1,8 +1,8 @@
 import numpy as np
 import math
-from scipy.special import softmax
-
+from softmax import softmax
 import time
+import math
 
 
 
@@ -18,11 +18,11 @@ class MLP:
 
 
     def init_params(self, ni, nh, no):
-        self.weights_input_hidden = np.random.normal(0, 0.3, (ni, nh))             #ask her about this
-        self.bias_input_hidden = np.zeros((1, nh))
+        self.weights_input_hidden = np.random.normal(0, 0.3, (nh, ni))
+        self.bias_input_hidden = np.zeros((1, nh))                             # because we'll use it for each value of x, otherwise use nhxm
 
-        self.weights_hidden_output = np.random.normal(0, 0.3, (nh, no))
-        self.bias_hidden_output = np.zeros((1, no))
+        self.weights_hidden_output = np.random.normal(0, 0.3, (no, nh))
+        self.bias_hidden_output = np.zeros((1, no))     #shouldn't exist nrmlmn
 
         print("** Initializing weights and biases **")
         print("Input -> Hidden Weights: ", self.weights_input_hidden, "\n")
@@ -39,93 +39,157 @@ class MLP:
     def hyperbolic_tan(self, x):    #Hyperbolic Tang
         return np.tanh(x)
 
-    def softmax(self, x):
-        e_x = np.exp(x - np.max(x, axis=1, keepdims=True))  # Subtract max for numerical stability
-        return e_x / np.sum(e_x, axis=1, keepdims=True)
-        # return softmax(x)
 
-    def forward(self, X):
+
+
+
+    def forward(self, X, A1, A2):
         print("**** Going through the Input-hidden layer: ")
         time.sleep(1)
 
-        input_hidden = np.dot(X.T, self.weights_input_hidden) + self.bias_input_hidden
-        print("Dot product results: ", input_hidden)
+        input_hidden = np.dot(self.weights_input_hidden, X.T) + self.bias_input_hidden
+        print("Z1: ", input_hidden)
         input_hidden = self.hyperbolic_tan(input_hidden)
-        print("Hidden Layer's final output: ", input_hidden)
+        input_hidden = input_hidden.T
 
+        A1 = np.hstack((A1, input_hidden))
 
-        print("**** Going through the hidden-output layer: ")
-        # time.sleep(1)
-
-        hidden_output = np.dot(input_hidden, self.weights_hidden_output) + self.bias_hidden_output
-        print("Dot product results: ", hidden_output)
-        hidden_output = self.softmax(hidden_output)
-        print("Final output: ", hidden_output)
+        print("A1: ", A1)
 
         # input("")
 
 
-        return hidden_output
+        # print(input_hidden)
 
-    def one_hot_encode(self, y):
+        print("**** Going through the hidden-output layer: ")
+        # time.sleep(1)
+        hidden_output = np.dot(self.weights_hidden_output, input_hidden)                                    #no output bias
+        hidden_output = hidden_output + self.bias_hidden_output.T
+
+        # hidden_output = np.dot(self.weights_hidden_output, input_hidden) + self.bias_hidden_output        #with output bias
+        # print("hidden output bias: ", self.bias_hidden_output)
+        # print("hidden to output values: ", hidden_output)
+        # hidden_output = hidden_output + self.bias_hidden_output.T
+
+        print("Z2: ", hidden_output)
+
+        hidden_output = softmax(hidden_output)
+
+        A2 = np.hstack((A2, hidden_output))
+
+        print("A2: ", A2)
+        print("\n")
+
+        input("")
+        return A1, A2
 
 
-        encoded_arr = np.zeros((y.shape), dtype=int)
 
-        print("1.... :One Hot encoded array: ", encoded_arr)
+    def one_hot_encode(self, y, classes):
+        rows = y.shape[0]
 
-        print("*****")
+        encoded_arr = np.zeros((rows, classes))
 
-        mask = np.max(y, axis=1, keepdims=True)
-        print(mask)
-
-        print("2....: One Hot encoded array: ", encoded_arr)
+        encoded_arr[np.arange(y.shape[0]), y] = 1
 
         return encoded_arr
 
 
 
-    def loss_accuracy(self, y, y_pred):
-        y_one_hot = self.one_hot_encode(y, y_pred.shape[1])        #convert y to one-hot
-        return -np.sum(y_one_hot * np.log(y_pred + 1e-10))     #add small epsilon to avoid log(0)
+
+
+    def loss(self, y_one_hot_encoded, y_predicted):
+        selected_vals = y_predicted[y_one_hot_encoded == 1]
+
+        sum = 0
+
+        for val in selected_vals:
+            sum += math.log1p(val)       #log is the natural logarithm (base e)
+
+        sum = sum / y_one_hot_encoded.shape[0]
+
+        return sum
+
+
+
+
+
+    def accuracy(self, y, y_predicted):
+
+        true = 0
+        total = y.shape[0]
+
+        max_indeces = np.argmax(y_predicted, axis=1)
+
+        print(max_indeces)
+
+        for i in range(9):
+            if max_indeces[i] == y[i]:
+                true += 1
+
+        return true, total
+
+
 
 
                    #0               1                2               3
 X = np.array([[1, 1], [2, 2], [3, 3], [4, 4], [5, 5], [6, 6], [7, 7], [8, 8], [9, 9]])
 print(X)
+
 y = np.array([0, 0, 1, 1, 2, 2, 3, 3, 3])
 
 neuron = MLP()
 neuron.init_params(2, 3, 4)
 
+
+
+
 input("")
 
+A1 = np.empty((3, 0))
+A2 = np.empty((4, 0))
 y_pred = []
 
 for item in X:
     print(item)
 
-    i = neuron.forward(item)
-
-    item_reshaped = i.reshape(1, -1)  # Reshape to (1, 2)
+    A1, A2 = neuron.forward(item, A1, A2)
 
 
-    y_pred.append(item_reshaped)
 
-y_pred = np.vstack(y_pred)
+print("The Final A1 Matrix:", A1)
+print("\n")
+A2 = A2.T
+print("The Final A2 Matrix:", A2)
 
-print(y_pred)
+
+
 
 
 input("")
+
+print("One Hot Encoding:")
+print("\n")
+
+input("")
+
 # loss = tf.keras.losses.categorical_crossentropy(y, y_pred)
-y_pred_encoded = neuron.one_hot_encode(y_pred)
+y_encoded = neuron.one_hot_encode(y, 4)
+
+print("Y before: ", y)
+print("\n")
+print("Y encoded: ")
+print(y_encoded)
+
+
 
 
 
 input("")
+print("Loss function calculation:")
+loss = neuron.loss(y_encoded, A2)
+print("The optained Loss function: ", loss)
 
-
-
-
+accuracy = neuron.accuracy(y, A2)
+print("The optained Accuracy: ", accuracy)
 
